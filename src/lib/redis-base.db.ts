@@ -1044,6 +1044,22 @@ export abstract class BaseRedisStorage implements IStorage {
     }
     // 删除用户的歌单列表
     await this.withRetry(() => this.adapter.del(this.musicPlaylistsKey(userName)));
+
+    // 删除音乐 V2 播放记录
+    await this.withRetry(() => this.adapter.del(this.musicV2HistoryKey(userName)));
+
+    // 删除音乐 V2 歌单
+    const musicV2PlaylistIds = await this.withRetry(() =>
+      this.adapter.zRange(this.musicV2PlaylistsKey(userName), 0, -1)
+    );
+    if (musicV2PlaylistIds && musicV2PlaylistIds.length > 0) {
+      for (const playlistId of musicV2PlaylistIds) {
+        const id = ensureString(playlistId);
+        await this.withRetry(() => this.adapter.del(this.musicV2PlaylistKey(id)));
+        await this.withRetry(() => this.adapter.del(this.musicV2PlaylistItemsKey(id)));
+      }
+    }
+    await this.withRetry(() => this.adapter.del(this.musicV2PlaylistsKey(userName)));
   }
 
   // ---------- 新版用户存储（使用Hash和Sorted Set） ----------
@@ -1683,7 +1699,7 @@ export abstract class BaseRedisStorage implements IStorage {
 
       // 删除所有用户及其数据
       for (const username of allUsers) {
-        await this.deleteUser(username);
+        await this.deleteUserV2(username);
       }
 
       // 删除管理员配置
